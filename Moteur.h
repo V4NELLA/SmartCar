@@ -3,6 +3,7 @@
 
 #include "SmartCar-v3Plus.h"
 
+void modifier_puissance(int trim);
 void moteur_init();
 void modifier_puissance(int puissance);
 void avancer(int puissance);

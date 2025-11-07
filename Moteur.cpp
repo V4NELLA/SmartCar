@@ -1,4 +1,12 @@
 #include "Moteur.h"
+#include "Logger.h"
+
+// Ajout : trim pour corriger décalage latéral
+static int motor_trim = -28; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
+
+void modifier_puissance(int trim) {
+    motor_trim = trim;
+}
 
 void moteur_init() {
     pinMode(ENA, OUTPUT);
@@ -11,19 +19,23 @@ void moteur_init() {
 
 
 void avancer(int p) {
-	Serial.println("Avancer");
-  analogWrite(ENA, p);
-  analogWrite(ENB, p);
-	digitalWrite(IN1,HIGH);
-	digitalWrite(IN2,LOW);
-	digitalWrite(IN3,LOW);
-	digitalWrite(IN4,HIGH);
+    logPrintln("Avancer");
+    //Serial.println("Avancer");
+    int left = constrain(p + motor_trim, 0, 255);
+    int right = constrain(p - motor_trim, 0, 255);
+    analogWrite(ENA, left);
+    analogWrite(ENB, right);
+    digitalWrite(IN1,HIGH);
+    digitalWrite(IN2,LOW);
+    digitalWrite(IN3,LOW);
+    digitalWrite(IN4,HIGH);
 }
 
 // Faire reculer le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void reculer(){
-	Serial.println("Reculer");
+    logPrintln("Reculer");
+	//Serial.println("Reculer");
 	digitalWrite(IN1,LOW);
 	digitalWrite(IN2,HIGH);
 	digitalWrite(IN3,HIGH);
@@ -40,26 +52,32 @@ void reculer(int duree){
 // Faire trouner à gauche le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_gauche(int p){
-	Serial.println("Tourner à gauche");
-	analogWrite(ENA, p);
-  	analogWrite(ENB, p);
-	digitalWrite(IN1,LOW);
-	digitalWrite(IN2,HIGH);
-	digitalWrite(IN3,LOW);
-	digitalWrite(IN4,HIGH); 
+    logPrintln("Tourner à gauche");
+    //Serial.println("Tourner à gauche");
+    int left = constrain(p + motor_trim, 0, 255);
+    int right = constrain(p - motor_trim, 0, 255);
+    analogWrite(ENA, left);
+    analogWrite(ENB, right);
+    digitalWrite(IN1,LOW);
+    digitalWrite(IN2,HIGH);
+    digitalWrite(IN3,LOW);
+    digitalWrite(IN4,HIGH); 
 }
 
 
 // Faire trouner à droite le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_droite(int p){
-	analogWrite(ENA, p);
-  	analogWrite(ENB, p);
-	Serial.println("Tourner à droite");
-	digitalWrite(IN1,HIGH);
-	digitalWrite(IN2,LOW);
-	digitalWrite(IN3,HIGH);
-	digitalWrite(IN4,LOW); 
+    int left = constrain(p + motor_trim, 0, 255);
+    int right = constrain(p - motor_trim, 0, 255);
+    analogWrite(ENA, left);
+    analogWrite(ENB, right);
+    logPrintln("Tourner à droite");
+    //Serial.println("Tourner à droite");
+    digitalWrite(IN1,HIGH);
+    digitalWrite(IN2,LOW);
+    digitalWrite(IN3,HIGH);
+    digitalWrite(IN4,LOW); 
 }
 
 

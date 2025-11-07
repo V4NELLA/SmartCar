@@ -34,13 +34,13 @@ long mesureDistance() {
 
 
 long scanDroite() {
-    servomoteur.write(ANGLE_DROITE);
-    delay(300);
+    servomoteur.write(45);
+    delay(100);
     return mesureDistance();
 }
 
 long scanGauche() {
-    servomoteur.write(ANGLE_GAUCHE);
+    servomoteur.write(135);
     delay(300);
     return mesureDistance();
 }
