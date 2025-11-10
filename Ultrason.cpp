@@ -11,6 +11,7 @@ long scanAvant() {
   // Le servo est déjà au centre normalement, mais on s'assure :
   servomoteur.write(ANGLE_CENTRE);
   delay(250); // attendre que le servo se stabilise
+  Serial.print("Position  scan avant : "); Serial.println(servomoteur.read());
   return mesureDistance();
 }
 
@@ -29,6 +30,7 @@ long mesureDistance() {
         somme += dist;
         delay(20);
     }
+    Serial.print("Position  mesure distance : "); Serial.println(servomoteur.read());
     return somme / n;
 }
 
@@ -36,11 +38,13 @@ long mesureDistance() {
 long scanDroite() {
     servomoteur.write(45);
     delay(100);
+    Serial.print("Position  scan droite : "); Serial.println(servomoteur.read());
     return mesureDistance();
 }
 
 long scanGauche() {
     servomoteur.write(135);
     delay(300);
+    Serial.print("Position  scan gauche : "); Serial.println(servomoteur.read());
     return mesureDistance();
 }

@@ -11,13 +11,9 @@
 #define LSD 10
 
 void line_init();               // initialise et calibre rapidement
-void line_calibrate();          // affiche valeurs pour calibration manuelle
-bool isLineLeft();
-bool isLineCenter();
-bool isLineRight();
-int getLeftRaw();
-int getCenterRaw();
-int getRightRaw();
+bool milieu_est_noir();
+bool droite_est_noir();
+bool gauche_est_noir();
 
 #endif
 // ...existing code...

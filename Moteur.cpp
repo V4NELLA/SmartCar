@@ -1,5 +1,4 @@
 #include "Moteur.h"
-#include "Logger.h"
 
 // Ajout : trim pour corriger décalage latéral
 static int motor_trim = -28; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
@@ -19,8 +18,7 @@ void moteur_init() {
 
 
 void avancer(int p) {
-    logPrintln("Avancer");
-    //Serial.println("Avancer");
+    Serial.println("Avancer");
     int left = constrain(p + motor_trim, 0, 255);
     int right = constrain(p - motor_trim, 0, 255);
     analogWrite(ENA, left);
@@ -34,8 +32,7 @@ void avancer(int p) {
 // Faire reculer le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void reculer(){
-    logPrintln("Reculer");
-	//Serial.println("Reculer");
+    Serial.println("Reculer");
 	digitalWrite(IN1,LOW);
 	digitalWrite(IN2,HIGH);
 	digitalWrite(IN3,HIGH);
@@ -52,8 +49,7 @@ void reculer(int duree){
 // Faire trouner à gauche le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_gauche(int p){
-    logPrintln("Tourner à gauche");
-    //Serial.println("Tourner à gauche");
+    Serial.println("Tourner à gauche");
     int left = constrain(p + motor_trim, 0, 255);
     int right = constrain(p - motor_trim, 0, 255);
     analogWrite(ENA, left);
@@ -72,8 +68,7 @@ void tourner_droite(int p){
     int right = constrain(p - motor_trim, 0, 255);
     analogWrite(ENA, left);
     analogWrite(ENB, right);
-    logPrintln("Tourner à droite");
-    //Serial.println("Tourner à droite");
+    Serial.println("Tourner à droite");
     digitalWrite(IN1,HIGH);
     digitalWrite(IN2,LOW);
     digitalWrite(IN3,HIGH);
