@@ -11,14 +11,13 @@ void ultrason_init() {
 long scanAvant() {
   // Le servo est déjà au centre normalement, mais on s'assure :
   servomoteur.write(ANGLE_CENTRE);
-  delay(250); // attendre que le servo se stabilise
   Serial.print("Position  scan avant : "); Serial.println(servomoteur.read());
   return mesureDistance();
 }
 
 long mesureDistance() {
     long somme = 0;
-    int n = 3; // nombre de mesures
+    int n = 5; // nombre de mesures
     for (int i = 0; i < n; i++) {
         digitalWrite(TRIG, LOW);
         delayMicroseconds(2);
@@ -37,7 +36,7 @@ long mesureDistance() {
 
 
 long scanDroite() {
-    servomoteur.write(45);
+    servomoteur.write(0);
     delay(100);
     Serial.print("Position  scan droite : "); Serial.println(servomoteur.read());
     return mesureDistance();
