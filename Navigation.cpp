@@ -3,10 +3,16 @@
 
 #define DISTANCE_RALENTI 60
 #define DISTANCE_OBSTACLE 15   // cm
-#define VITESSE_AVANCE 130
+#define VITESSE_AVANCE 120
 #define VITESSE_RALENTI 120
+#define VITESSE_VIRAGE 120
 #define TEMPS_ROTATION 200
 #define CHECK_INTERVAL 10
+
+// comportement : suivre la ligne située à droite du robot
+static unsigned long last_lost_ts = 0;
+static const unsigned long LOST_TIMEOUT = 400; // ms avant recherche active
+
 
 void navigation_init() {
   moteur_init();
@@ -14,105 +20,119 @@ void navigation_init() {
   line_init();
 }
 
-void corrective_from_line() {
-  // Action corrective simple : si capteur sur la bande noire, reculer + tourner vers intérieur
-  if (gauche_est_noir()) {
-    Serial.println("Ligne detectee: gauche -> correction droite");
-    stop();
-    delay(50);
-    while(gauche_est_noir()) {
+void eviter_obstacle_contourner() {
+  Serial.println("Début contournement : tourner à gauche");
+  stop();
+  delay(50);
+  // petit recul
+  reculer(250);
+  delay(50);
+  // tourner à gauche pour commencer le contournement
+  tourner_gauche(200);
+  delay(TEMPS_ROTATION);
+  stop();
+  delay(50);
+
+  // avancer en contournant : tant que l'obstacle est encore à droite, avancer tout droit
+  while (true) {
+    long dDroite = scanDroite(); // met à jour et attend stabilisation servo
+    Serial.print("Contournement - dist droite: "); Serial.println(dDroite);
+
+    if (dDroite <= DISTANCE_OBSTACLE) {
+      // obstacle toujours sur la droite => on avance tout droit
+      avancer(VITESSE_RALENTI);
+      delay(300);
+      stop();
+    } 
+    else {
+      // droite dégagée => tourner à droite pour revenir vers l'obstacle / la ligne
+      Serial.println("Contournement : droite dégagée -> tourner à droite pour retrouver");
       tourner_droite(200);
+      delay(TEMPS_ROTATION);
+      stop();
+      break;
+    }
+  }
+
+  delay(50);
+  Serial.println("Fin contournement");
+}
+
+// maintien du suivi de ligne à droite (appel fréquent)
+void suivre_ligne_droite() {
+  if(gauche_est_noir()) {
+    stop();
+    reculer(50, 255);
+    tourner_gauche(200);
+    delay(200);
+    stop();
+    last_lost_ts = 0;
+  }
+  else if(milieu_est_noir()) {
+    avancer_gauche(200);
+    delay(10);
+    last_lost_ts = 0;
+  }
+  else if(droite_est_noir()) {
+    avancer_droite(200);
+    delay(10);
+    last_lost_ts = 0;
+  }
+  // aucun capteur ne voit la ligne : comportement de recherche
+  if (last_lost_ts == 0) last_lost_ts = millis();
+  unsigned long lost_for = millis() - last_lost_ts;
+
+  if (lost_for < LOST_TIMEOUT) {
+    // court: avancer doucement en espérant retrouver la ligne
+    avancer(VITESSE_RALENTI);
+    delay(30);
+  } else {
+    // perdu depuis trop longtemps : effectuer petite rotation droite pour chercher la ligne (on suit la droite)
+    Serial.println("Ligne perdue : recherche active (rotation droite)");
+    tourner_droite(200);
+    delay(500);
+    stop();
+    while(!droite_est_noir()) {
+      avancer(VITESSE_RALENTI);
     }
     stop();
-  } else if (droite_est_noir()) {
-    Serial.println("Ligne detectee: droite -> correction gauche");
-    stop();
-    delay(50);
-    while(droite_est_noir()) {
-      tourner_gauche(200);
-    }
-    stop();
-  } else if (milieu_est_noir()) {
-    // si au centre, on est trop près de la limite : reculer et tourner aléatoirement vers l'intérieur
-    Serial.println("Ligne detectee: centre -> reculer");
-    stop();
-    delay(50);
-    reculer(200);
-    tourner_gauche(250);
-    delay(TEMPS_ROTATION);
-    stop();
+    last_lost_ts = 0;
   }
 }
 
-void check_line() {
-  if (gauche_est_noir() || droite_est_noir() || milieu_est_noir()) {
-    corrective_from_line();
-  }
-}
-
-void avancer_avec_check(int vitesse, int duree) {
-  unsigned long startTime = millis();
-  while (millis() - startTime < duree) {
-    avancer(vitesse);
-    check_line();  // Vérifie la ligne pendant l'avance
-    delay(CHECK_INTERVAL);
-  }
-}
-
-void tourner_avec_check(bool vers_droite, int vitesse, int duree) {
-  unsigned long startTime = millis();
-  while (millis() - startTime < duree) {
-    if (vers_droite) {
-      tourner_droite(vitesse);
-    } else {
-      tourner_gauche(vitesse);
-    }
-    check_line();
-    delay(CHECK_INTERVAL);
-  }
-}
-
-
-
-void navigation_loop() {
-  long distGauche, distCentre, distDroite;
-
+void detecter_obstacle() {
   stop();
 
-  distGauche = scanGauche();
-  distCentre = scanAvant();
-  distDroite = scanDroite();
+
+  // lire distances (gauche / centre / droite) en début d'itération
+  long distGauche = scanGauche();
+  long distCentre = scanAvant();
+  long distDroite = scanDroite();
 
   Serial.print("G:"); Serial.print(distGauche);
   Serial.print(" C:"); Serial.print(distCentre);
   Serial.print(" D:"); Serial.println(distDroite);
 
-  // Vérifier la ligne en priorité
-  check_line();
-
-  // Gestion des obstacles
-  if ((distDroite < DISTANCE_OBSTACLE) || (distGauche < DISTANCE_OBSTACLE) || (distCentre < DISTANCE_OBSTACLE)) {
-      stop();
-      delay(50);
-
-      // Choix de la direction d'évitement
-      if (distDroite > distGauche && distDroite > DISTANCE_OBSTACLE) {
-          tourner_avec_check(true, 250, TEMPS_ROTATION);
-      } else if (distGauche > DISTANCE_OBSTACLE) {
-          tourner_avec_check(false, 250, TEMPS_ROTATION);
-      } else {
-          // Bloqué : recul et rotation
-          reculer();
-          delay(200);
-          tourner_avec_check(true, 250, TEMPS_ROTATION);
-      }
-      stop();
+  // Si obstacle devant ou proche -> lancer contournement
+  if (distCentre < DISTANCE_OBSTACLE || distGauche < DISTANCE_OBSTACLE || distDroite < DISTANCE_OBSTACLE) {
+    Serial.println("Obstacle detecte -> lancement contournement");
+    stop();
+    delay(50);
+    eviter_obstacle_contourner();
+    // après contournement, on reprend suivi ligne ; on laisse un petit délai
+    delay(50);
+    return;
   }
-  // Navigation normale avec vérification ligne continue
-  else if (distCentre <= DISTANCE_RALENTI) {
-      avancer_avec_check(VITESSE_RALENTI, 1000);
-  } else {
-      avancer_avec_check(VITESSE_AVANCE, 1000);
-  }
-  delay(10);  // Court délai pour stabilité
+
+  // petit délai pour stabilité (CHECK_INTERVAL permet fréquence élevée)
+  delay(CHECK_INTERVAL);
+}
+
+
+void navigation_loop() {
+
+  // Sinon : suivre la ligne située à droite (vérifications très fréquentes)
+  suivre_ligne_droite();
+  //detecter_obstacle();
+ 
 }

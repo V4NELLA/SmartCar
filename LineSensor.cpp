@@ -1,4 +1,3 @@
-// ...existing code...
 #include "LineSensor.h"
 
 
@@ -25,3 +24,6 @@ bool droite_est_noir() {
 bool gauche_est_noir() {
 	return digitalRead(LSG) == LOW;
 }
+
+
+

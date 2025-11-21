@@ -1,4 +1,5 @@
 #include "Ultrason.h"
+#include "Navigation.h"
 
 void ultrason_init() {
     pinMode(TRIG, OUTPUT);

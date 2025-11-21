@@ -1,11 +1,10 @@
-// ...existing code...
 #ifndef __LINESENSOR_H__
 #define __LINESENSOR_H__
 
 #include <Arduino.h>
 
 
-// Pins (modifiez si nécessaire)
+// Pins
 #define LSG  2
 #define LSC 4
 #define LSD 10
@@ -16,4 +15,3 @@ bool droite_est_noir();
 bool gauche_est_noir();
 
 #endif
-// ...existing code...
