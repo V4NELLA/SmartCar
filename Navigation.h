@@ -6,7 +6,5 @@
 
 void navigation_init();
 void navigation_loop();
-void eviter_obstacle_contourner();
-void suivre_ligne_droite();
 
 #endif
