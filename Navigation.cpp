@@ -2,7 +2,7 @@
 #include "LineSensor.h"
 
 #define DISTANCE_RALENTI 60
-#define DISTANCE_OBSTACLE 15   // cm
+#define DISTANCE_OBSTACLE 22   // cm
 #define VITESSE_AVANCE 120
 #define VITESSE_RALENTI 120
 #define VITESSE_VIRAGE 120
@@ -21,47 +21,47 @@ void navigation_init() {
 }
 
 void eviter_obstacle_contourner() {
-  Serial.println("Début contournement : tourner à gauche");
+  Serial.println("Début contournement : tourner à droite");
   stop();
   delay(50);
-  // tourner à gauche pour commencer le contournement
-  tourner_gauche(200);
+  // tourner à droite pour commencer le contournement
+  tourner_droite(200);
   delay(TEMPS_ROTATION);
   stop();
   delay(50);
   avancer(120);
   delay(200);
 
-  while(!droite_est_noir()) {
-    // avancer en contournant : tant que l'obstacle est encore à droite, avancer tout droit
-    long dDroite = scanDroite(); // met à jour et attend stabilisation servo
+  while(!gauche_est_noir()) {
+    // avancer en contournant : tant que l'obstacle est encore à gauche, avancer tout droit
+    long dGauche = scanGauche(); // met à jour et attend stabilisation servo
     long dObstacle;
-    if(dDroite > DISTANCE_OBSTACLE) {
+    if(dGauche > DISTANCE_OBSTACLE) {
       dObstacle = DISTANCE_OBSTACLE;
     }
     else {
-      dObstacle = dDroite;
+      dObstacle = dGauche;
     }
-    Serial.print("Contournement - dist droite: "); Serial.println(dDroite);
+    Serial.print("Contournement - dist gauche: "); Serial.println(dGauche);
 
-    while(scanDroite() <= dObstacle + 5) {
-      // obstacle toujours sur la droite => on avance tout droit
+    while(scanGauche() <= dObstacle + 5) {
+      // obstacle toujours sur la gauche => on avance tout droit
       avancer(VITESSE_RALENTI);
     }
-    if(scanDroite() <= dObstacle + 10) {
+    if(scanGauche() <= dObstacle + 10) {
       stop();
       delay(2000);
-      tourner_droite(200);
+      tourner_gauche(200);
       delay(50);
       avancer(VITESSE_RALENTI);
       delay(100);
     }
     else {
-    // droite dégagée => tourner à droite pour revenir vers l'obstacle / la ligne
-      Serial.println("droite dégagée -> tourner à droite pour retrouver obstacle ou ligne");
-      delay(400);
-      tourner_droite(200);
-      delay(TEMPS_ROTATION*0.8);
+    // gauche dégagée => tourner à gauche pour revenir vers l'obstacle / la ligne
+      Serial.println("gauche dégagée -> tourner à gauche pour retrouver obstacle ou ligne");
+      delay(200);
+      tourner_gauche(200);
+      delay(TEMPS_ROTATION);
       stop();
       avancer(VITESSE_RALENTI);
       delay(1200);
@@ -73,22 +73,22 @@ void eviter_obstacle_contourner() {
 }
 
 // maintien du suivi de ligne à droite (appel fréquent)
-void suivre_ligne_droite() {
-  if(gauche_est_noir()) {
+void suivre_ligne_gauche() {
+  if(droite_est_noir()) {
     stop();
     reculer(50, 255);
-    tourner_gauche(200);
+    tourner_droite(200);
     delay(200);
     stop();
     last_lost_ts = 0;
   }
   else if(milieu_est_noir()) {
-    avancer_gauche(200);
+    avancer_droite(200);
     delay(30);
     last_lost_ts = 0;
   }
-  else if(droite_est_noir()) {
-    avancer_droite(200);
+  else if(gauche_est_noir()) {
+    avancer_gauche(200);
     delay(30);
     last_lost_ts = 0;
   }
@@ -102,11 +102,11 @@ void suivre_ligne_droite() {
     delay(30);
   } else {
     // perdu depuis trop longtemps : effectuer petite rotation droite pour chercher la ligne (on suit la droite)
-    Serial.println("Ligne perdue : recherche active (rotation droite)");
-    tourner_droite(200);
+    Serial.println("Ligne perdue : recherche active (rotation gauche)");
+    tourner_gauche(200);
     delay(500);
     stop();
-    while(!droite_est_noir()) {
+    while(!gauche_est_noir()) {
       avancer(VITESSE_RALENTI);
     }
     stop();
@@ -123,6 +123,8 @@ void detecter_obstacle() {
   // Si obstacle devant ou proche -> lancer contournement
   if (distCentre < DISTANCE_OBSTACLE) {
     Serial.println("Obstacle detecte -> lancement contournement");
+    avancer(120); //AJOUT car distance détection augmentée à 22cm
+    delay(200);   //AJOUT car distance détection augmentée à 22cm
     stop();
     delay(50);
     eviter_obstacle_contourner();
@@ -139,7 +141,7 @@ void detecter_obstacle() {
 void navigation_loop() {
 
   // Sinon : suivre la ligne située à droite (vérifications très fréquentes)
-  suivre_ligne_droite();
+  suivre_ligne_gauche();
   detecter_obstacle();
  
 }
