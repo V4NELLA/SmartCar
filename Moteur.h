@@ -6,12 +6,12 @@
 void moteur_init();
 void modifier_puissance(int puissance);
 void avancer(int puissance);
-void reculer();
-void reculer(int duree);
-void tourner_gauche();
-void tourner_gauche(int duree);
-void tourner_droite();
-void tourner_droite(int duree);
+void reculer(); // met les pins en marche arrière, PWM géré par caller
+// blocking variant reculer(int duree) retirée -> utiliser ordonnanceur non-bloquant
+void tourner_gauche(int p);
+void tourner_droite(int p);
+void avancer_gauche(int p);
+void avancer_droite(int p);
 void stop();
 
 #endif
