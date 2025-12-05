@@ -1,5 +1,4 @@
 #include "Ultrason.h"
-#include "Navigation.h"
 
 void ultrason_init() {
     pinMode(TRIG, OUTPUT);
@@ -17,7 +16,7 @@ long scanAvant() {
 
 long mesureDistance() {
     long somme = 0;
-    int n = 5; // nombre de mesures
+    int n = 3; // nombre de mesures
     for (int i = 0; i < n; i++) {
         digitalWrite(TRIG, LOW);
         delayMicroseconds(2);
@@ -36,9 +35,8 @@ long mesureDistance() {
 
 
 long scanDroite() {
-    servomoteur.write(0);
-    delay(100);
-    Serial.print("Position  scan droite : "); Serial.println(servomoteur.read());
+    servomoteur.write(ANGLE_DROITE);
+    delay(300);
     return mesureDistance();
 }
 

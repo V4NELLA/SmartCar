@@ -13,11 +13,12 @@
 static unsigned long last_lost_ts = 0;
 static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
 
+#define DISTANCE_OBSTACLE 40   // cm
+#define VITESSE_AVANCE 100
 
 void navigation_init() {
   moteur_init();
   ultrason_init();
-  line_init();
 }
 
 void eviter_obstacle_contourner() {
@@ -110,7 +111,7 @@ void suivre_ligne_gauche() {
       avancer(VITESSE_RALENTI);
     }
     stop();
-    last_lost_ts = 0;
+    delay(100);
   }
 }
 
@@ -133,8 +134,7 @@ void detecter_obstacle() {
     return;
   }
 
-  // petit délai pour stabilité (CHECK_INTERVAL permet fréquence élevée)
-  delay(CHECK_INTERVAL);
+  delay(50);
 }
 
 
