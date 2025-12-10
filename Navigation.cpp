@@ -2,15 +2,15 @@
 #include "LineSensor.h"
 
 #define DISTANCE_RALENTI 60
-#define DISTANCE_OBSTACLE 22   // cm
+#define DISTANCE_OBSTACLE 15   // cm
 #define VITESSE_AVANCE 120
 #define VITESSE_RALENTI 120
 #define VITESSE_VIRAGE 120
-#define TEMPS_ROTATION 1000
-#define CHECK_INTERVAL 10
+#define TEMPS_ROTATION 500
+#define CHECK_INTERVAL 30
 
 // périodicités (ms)
-#define SCAN_INTERVAL 200      // intervalle pour scan ultrasons
+#define SCAN_INTERVAL 400      // intervalle pour scan ultrasons
 #define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
 
 // --- Motion scheduler (non-bloquant) ---
@@ -28,6 +28,12 @@ static unsigned long lastLineCheckMs = 0;
 // comportement : suivre la ligne située à gauche du robot
 static unsigned long last_lost_ts = 0;
 static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
+
+// non-bloquing avoidance sequence state-machine
+static bool avoidActive = false;
+static int avoidStep = 0;
+static unsigned long avoidStepEnd = 0;
+static long lastDistG=300, lastDistC=300, lastDistD=300;
 
 // start a motion for durationMs (non-blocking)
 static void startMotion(MotionType t, int speed, unsigned long durationMs) {
@@ -86,11 +92,14 @@ static void periodicScan(long &distG, long &distC, long &distD) {
   distC = ultrason_getCentre();
   distD = ultrason_getDroite();
   // print debug ponctuel (optionnel)
-  // Serial.print("Scan G:"); Serial.print(distG); Serial.print(" C:"); Serial.print(distC); Serial.print(" D:"); Serial.println(distD);
+  //Serial.print("Scan G:"); Serial.print(distG); Serial.print(" C:"); Serial.print(distC); Serial.print(" D:"); Serial.println(distD);
 }
+
 
 // periodic line check -> corrective small motions (non-blocking)
 static void periodicLineCheck() {
+
+  Serial.println("Scan ligne");
   unsigned long now = millis();
   if (now - lastLineCheckMs < LINE_CHECK_INTERVAL) return;
   lastLineCheckMs = now;
@@ -98,7 +107,8 @@ static void periodicLineCheck() {
   // priorité : si détecte ligne -> corrections rapides et courtes
   if (droite_est_noir()) {
     // petite impulsion vers la droite
-    startMotion(MOT_RIGHT, 160, 60);
+    Serial.println("Droite est noir");
+    startMotion(MOT_TURN_RIGHT, 160, 60);
     return;
   }
   if (milieu_est_noir()) {
@@ -107,19 +117,15 @@ static void periodicLineCheck() {
     return;
   }
   if (gauche_est_noir()) {
-    startMotion(MOT_LEFT, 160, 80);
+    startMotion(MOT_TURN_LEFT, 160, 80);
     return;
   }
 
   // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active) startMotion(MOT_FORWARD, VITESSE_RALENTI, 200);
+  if (!motion.active && !avoidActive) startMotion(MOT_FORWARD, VITESSE_RALENTI, 200);
 }
 
-// non-bloquing avoidance sequence state-machine
-static bool avoidActive = false;
-static int avoidStep = 0;
-static unsigned long avoidStepEnd = 0;
-static long lastDistG=300, lastDistC=300, lastDistD=300;
+
 
 static void startAvoidSequence() {
   avoidActive = true;
@@ -140,7 +146,7 @@ static void processAvoidSequence() {
       avoidStep++;
       break;
     case 1:
-      // wait for motion to finish
+      // attente recul complet
       if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
       break;
     case 2:
@@ -153,9 +159,9 @@ static void processAvoidSequence() {
       if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
       break;
     case 4:
-      // avancer par pas et tester droite libre
-      startMotion(MOT_FORWARD, VITESSE_RALENTI, 500);
-      avoidStepEnd = now + 500;
+      // avancer par pas et tester gauche libre
+      startMotion(MOT_FORWARD, VITESSE_RALENTI, 300);
+      avoidStepEnd = now + 300;
       avoidStep++;
       break;
     case 5:
@@ -232,63 +238,5 @@ void navigation_loop() {
   // progress avoidance state-machine (non-blocking)
   processAvoidSequence();
 
-  // tiny yield
   delay(1);
 }
-
-
-/*
-void eviter_obstacle_contourner() {
-  Serial.println("Début contournement : tourner à droite");
-  stop();
-  delay(50);
-  // tourner à droite pour commencer le contournement
-  tourner_droite(200);
-  delay(TEMPS_ROTATION);
-  stop();
-  delay(50);
-  avancer(120);
-  delay(200);
-
-  while(!gauche_est_noir()) {
-    // avancer en contournant : tant que l'obstacle est encore à gauche, avancer tout droit
-    long dGauche = scanGauche(); // met à jour et attend stabilisation servo
-    long dObstacle;
-    if(dGauche > DISTANCE_OBSTACLE) {
-      dObstacle = DISTANCE_OBSTACLE;
-    }
-    else {
-      dObstacle = dGauche;
-    }
-    Serial.print("Contournement - dist gauche: "); Serial.println(dGauche);
-
-    while(scanGauche() <= dObstacle + 5) {
-      // obstacle toujours sur la gauche => on avance tout droit
-      avancer(VITESSE_RALENTI);
-    }
-    if(scanGauche() <= dObstacle + 10) {
-      stop();
-      delay(2000);
-      tourner_gauche(200);
-      delay(50);
-      avancer(VITESSE_RALENTI);
-      delay(100);
-    }
-    else {
-    // gauche dégagée => tourner à gauche pour revenir vers l'obstacle / la ligne
-      Serial.println("gauche dégagée -> tourner à gauche pour retrouver obstacle ou ligne");
-      delay(200);
-      tourner_gauche(200);
-      delay(TEMPS_ROTATION);
-      stop();
-      avancer(VITESSE_RALENTI);
-      delay(1200);
-      break;
-    }
-  }
-  delay(50);
-  Serial.println("Fin contournement");
-}
-
-*/
-
