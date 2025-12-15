@@ -1,7 +1,7 @@
 #include "Moteur.h"
 
 // Ajout : trim pour corriger décalage latéral
-static int motor_trim = 0; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
+static int motor_trim = -40; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
 
 
 void moteur_init() {

@@ -5,7 +5,7 @@
 
 
 // Pins
-#define LSG  2
+#define LSG  2 //10
 #define LSC 4
 #define LSD 10
 

@@ -7,6 +7,7 @@ void line_init() {
   pinMode(LSD, INPUT);
 }
 
+
 // Capteur central
 // retourne true si noir (ou pas de détection), false sinon
 bool milieu_est_noir() {
@@ -18,6 +19,8 @@ bool milieu_est_noir() {
 bool droite_est_noir() {
 	return digitalRead(LSD) == LOW;
 }
+
+
 
 // Capteur gauche
 // retourne true si noir (ou pas de détection), false sinon

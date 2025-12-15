@@ -1,8 +1,9 @@
 #include "Navigation.h"
 #include "LineSensor.h"
+#include "Pince.h"
 
 #define DISTANCE_RALENTI 60
-#define DISTANCE_OBSTACLE 15   // cm
+#define DISTANCE_OBSTACLE 25   // cm
 #define VITESSE_AVANCE 120
 #define VITESSE_RALENTI 120
 #define VITESSE_VIRAGE 120
@@ -12,6 +13,8 @@
 // périodicités (ms)
 #define SCAN_INTERVAL 400      // intervalle pour scan ultrasons
 #define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
+
+Pince pince(13, 170, 10);  // Pin 13, 170° ouvert, 10° fermé
 
 // --- Motion scheduler (non-bloquant) ---
 enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
@@ -31,6 +34,7 @@ static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
 
 // non-bloquing avoidance sequence state-machine
 static bool avoidActive = false;
+static bool avoidStart = false;
 static int avoidStep = 0;
 static unsigned long avoidStepEnd = 0;
 static long lastDistG=300, lastDistC=300, lastDistD=300;
@@ -92,7 +96,7 @@ static void periodicScan(long &distG, long &distC, long &distD) {
   distC = ultrason_getCentre();
   distD = ultrason_getDroite();
   // print debug ponctuel (optionnel)
-  //Serial.print("Scan G:"); Serial.print(distG); Serial.print(" C:"); Serial.print(distC); Serial.print(" D:"); Serial.println(distD);
+  Serial.print("Scan G:"); Serial.print(distG); Serial.print(" C:"); Serial.print(distC); Serial.print(" D:"); Serial.println(distD);
 }
 
 
@@ -108,7 +112,7 @@ static void periodicLineCheck() {
   if (droite_est_noir()) {
     // petite impulsion vers la droite
     Serial.println("Droite est noir");
-    startMotion(MOT_TURN_RIGHT, 160, 60);
+    startMotion(MOT_TURN_RIGHT, 200, 100);
     return;
   }
   if (milieu_est_noir()) {
@@ -122,13 +126,35 @@ static void periodicLineCheck() {
   }
 
   // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active && !avoidActive) startMotion(MOT_FORWARD, VITESSE_RALENTI, 200);
+  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_RALENTI, 200);
 }
 
+
+/*
+static void periodicLineCheck() {
+
+  Serial.println("Scan ligne");
+  unsigned long now = millis();
+  if (now - lastLineCheckMs < LINE_CHECK_INTERVAL) return;
+  lastLineCheckMs = now;
+
+  // priorité : si détecte ligne -> corrections rapides et courtes
+  if (gauche_est_noir()) {
+    // petite impulsion vers la droite
+    Serial.println("Droite est noir");
+    startMotion(MOT_TURN_RIGHT, 160, 60);
+    return;
+  }
+
+  // aucune ligne : avancer lentement pour rechercher
+  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
+}
+*/
 
 
 static void startAvoidSequence() {
   avoidActive = true;
+  avoidStart = true;
   avoidStep = 0;
   stopMotionNow();
   avoidStepEnd = millis(); // commence immédiatement
@@ -141,7 +167,7 @@ static void processAvoidSequence() {
   switch (avoidStep) {
     case 0:
       // step0 : recul court
-      startMotion(MOT_BACKWARD, VITESSE_RALENTI, 300);
+      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 300);
       avoidStepEnd = now + 300;
       avoidStep++;
       break;
@@ -160,8 +186,9 @@ static void processAvoidSequence() {
       break;
     case 4:
       // avancer par pas et tester gauche libre
-      startMotion(MOT_FORWARD, VITESSE_RALENTI, 300);
-      avoidStepEnd = now + 300;
+      avoidStart = false;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1000);
+      avoidStepEnd = now + 1000;
       avoidStep++;
       break;
     case 5:
@@ -211,6 +238,7 @@ void navigation_init() {
   moteur_init();
   ultrason_init();
   line_init();
+  pince.init();
   lastScanMs = millis();
   lastLineCheckMs = millis();
   motion.active = false;
@@ -222,13 +250,17 @@ void navigation_loop() {
   updateMotion();
 
   // checks
-  periodicLineCheck();
+  if(!avoidStart) {
+    periodicLineCheck();
+  }
 
   // periodic scan (sets lastDist*)
   periodicScan(lastDistG, lastDistC, lastDistD);
 
   // obstacle detection based on latest scan results
   long minDist = min(lastDistC, min(lastDistG, lastDistD));
+  Serial.print("Distance min : ");
+  Serial.println(minDist);
   if (minDist < DISTANCE_OBSTACLE && !avoidActive) {
     // start avoidance without blocking
     stopMotionNow();
