@@ -84,7 +84,7 @@ void avancer_gauche(int p) {
     // tourne légèrement vers la gauche en réduisant la roue gauche
     int left = constrain(p + motor_trim, 0, 255);
     int right = constrain(p - motor_trim, 0, 255);
-    left = (left * 30) / 100; // réduire roue intérieure (gauche)
+    left = (left * 32) / 100; // réduire roue intérieure (gauche)
 
     analogWrite(ENA, left);   // PWM gauche
     analogWrite(ENB, right);  // PWM droite

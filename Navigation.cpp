@@ -218,8 +218,8 @@ static void processAvoidSequence() {
       if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
       break;
     case 7:
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 400);
-      avoidStepEnd = now + 400;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 450);
+      avoidStepEnd = now + 450;
       avoidStep++;
       break;
     case 8:
