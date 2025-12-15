@@ -11,6 +11,7 @@ private:
   int angle_ouvert;
   int angle_ferme;
   int angle_actuel;
+  int delai_pas; // délai par pas en ms pour le contrôle de vitesse
 
 public:
   // Constructeur
@@ -20,10 +21,14 @@ public:
   void init();
   
   // Actions principales
-  void ouvrir();
-  void fermer();
+  void ouvrir(int vitesse = -1);
+  void fermer(int vitesse = -1);
   void arreter();
-  void aller_position(int angle);
+  void aller_position(int angle, int vitesse = -1);
+  void lirePosition();
+  
+  // Réglage de la vitesse (délai entre pas en ms)
+  void set_vitesse(int ms);
   
   // Utilitaire
   int get_position_actuelle();

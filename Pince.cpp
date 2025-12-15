@@ -6,6 +6,8 @@ Pince::Pince(int pin, int ouvert, int ferme) {
   angle_ouvert = ouvert;
   angle_ferme = ferme;
   angle_actuel = ouvert;
+  // délai par pas en ms (vitesse) par défaut
+  delai_pas = 15;
 }
 
 // Initialise le servomoteur
@@ -16,13 +18,13 @@ void Pince::init() {
 }
 
 // Ouvre la pince (position = ouvert)
-void Pince::ouvrir() {
-  aller_position(angle_ouvert);
+void Pince::ouvrir(int vitesse) {
+  aller_position(angle_ouvert, vitesse);
 }
 
 // Ferme la pince (position = ferme)
-void Pince::fermer() {
-  aller_position(angle_ferme);
+void Pince::fermer(int vitesse) {
+  aller_position(angle_ferme, vitesse);
 }
 
 // Arrête le servomoteur (neutre, généralement 90°)
@@ -32,11 +34,12 @@ void Pince::arreter() {
 }
 
 // Déplace la pince vers un angle donné
-void Pince::aller_position(int angle) {
+void Pince::aller_position(int angle, int vitesse) {
   if (angle < 0) angle = 0;
   if (angle > 180) angle = 180;
   
-  int delai = 15;
+  int delai;
+  if (vitesse <= 0) delai = delai_pas; else delai = vitesse;
   
   if (angle_actuel > angle) {
     // Descendre l'angle
@@ -58,4 +61,15 @@ void Pince::aller_position(int angle) {
 // Retourne la position actuelle de la pince
 int Pince::get_position_actuelle() {
   return angle_actuel;
+}
+
+void Pince::lirePosition() {
+    Serial.print("Position pince : ");
+    Serial.println(servo_pince.read());
+}
+
+// Réglage de la vitesse par défaut (délai entre pas en ms)
+void Pince::set_vitesse(int ms) {
+  if (ms < 0) ms = 0;
+  delai_pas = ms;
 }

@@ -4,7 +4,7 @@
 
 #define DISTANCE_RALENTI 60
 #define DISTANCE_OBSTACLE 25   // cm
-#define VITESSE_AVANCE 120
+#define VITESSE_AVANCE 180
 #define VITESSE_RALENTI 120
 #define VITESSE_VIRAGE 120
 #define TEMPS_ROTATION 500
@@ -14,7 +14,7 @@
 #define SCAN_INTERVAL 400      // intervalle pour scan ultrasons
 #define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
 
-Pince pince(13, 170, 10);  // Pin 13, 170° ouvert, 10° fermé
+Pince pince(13, 100, 150);  // Pin 13, 170° ouvert, 10° fermé
 
 // --- Motion scheduler (non-bloquant) ---
 enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
@@ -126,7 +126,7 @@ static void periodicLineCheck() {
   }
 
   // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_RALENTI, 200);
+  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
 }
 
 
@@ -167,8 +167,8 @@ static void processAvoidSequence() {
   switch (avoidStep) {
     case 0:
       // step0 : recul court
-      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 300);
-      avoidStepEnd = now + 300;
+      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 600);
+      avoidStepEnd = now + 600;
       avoidStep++;
       break;
     case 1:
@@ -187,40 +187,55 @@ static void processAvoidSequence() {
     case 4:
       // avancer par pas et tester gauche libre
       avoidStart = false;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1000);
-      avoidStepEnd = now + 1000;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1100);
+      avoidStepEnd = now + 1100;
       avoidStep++;
       break;
     case 5:
       if (now >= avoidStepEnd && !motion.active) {
+        
         // faire un scan (lever de servo et mesure)
         lastDistG = ultrason_getGauche();
-        lastDistC = ultrason_getCentre();;
-        lastDistD = ultrason_getDroite();
+        //lastDistC = ultrason_getCentre();;
+        //lastDistD = ultrason_getDroite();
         Serial.print("Avoid scan G:"); Serial.print(lastDistG);
         Serial.print(" C:"); Serial.print(lastDistC);
         Serial.print(" D:"); Serial.println(lastDistD);
 
-        if (lastDistG > DISTANCE_OBSTACLE) {
+        //if (lastDistG > DISTANCE_OBSTACLE) {
           // gauche dégagée -> tourner gauche pour revenir vers la ligne/obstacle
           startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION);
           avoidStepEnd = now + TEMPS_ROTATION;
-          avoidStep = 6;
-        } else {
+          avoidStep++;
+        //} else {
           // sinon, avancer encore
-          avoidStep = 4; // boucle étape 4
-        }
+          //avoidStep = 4; // boucle étape 4
+        //}
+          
       }
       break;
     case 6:
+      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
+      break;
+    case 7:
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 400);
+      avoidStepEnd = now + 400;
+      avoidStep++;
+      break;
+    case 8:
+      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
+      break;
+    case 9:
       if (now >= avoidStepEnd && !motion.active) {
+        avoidStart = false;
+        avoidActive = false;
         // avancer un petit pas après rotation gauche
         startMotion(MOT_FORWARD, VITESSE_RALENTI, 400);
         avoidStepEnd = now + 400;
-        avoidStep = 7;
+        avoidStep = 9;
       }
       break;
-    case 7:
+    case 10:
       if (now >= avoidStepEnd && !motion.active) {
         // fin de la séquence
         avoidActive = false;
@@ -256,6 +271,7 @@ void navigation_loop() {
 
   // periodic scan (sets lastDist*)
   periodicScan(lastDistG, lastDistC, lastDistD);
+  lastDistD = 300;
 
   // obstacle detection based on latest scan results
   long minDist = min(lastDistC, min(lastDistG, lastDistD));
@@ -271,4 +287,16 @@ void navigation_loop() {
   processAvoidSequence();
 
   delay(1);
+}
+
+void testPince() {
+  //delay(2000);
+  
+  pince.fermer(25);         // utilise 25 ms/pas
+  delay(2000);
+  pince.lirePosition();
+  pince.ouvrir(25);      // ouvre lentement (25 ms/pas) pour éviter d'endommager
+  delay(2000);
+  pince.lirePosition();
+  
 }
