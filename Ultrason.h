@@ -5,10 +5,11 @@
 #include <Servo.h>
 
 void ultrason_init();            // init servo + IO
-void ultrason_update();          // doit être appelé fréquemment (loop)
+void ultrason_update(bool centre);          // doit être appelé fréquemment (loop)
 long ultrason_getGauche();       // dernière valeur lue (cm)
 long ultrason_getCentre();
 long ultrason_getDroite();
 void ultrason_requestFullScan(); // force un scan complet immédiat (optionnel)
+void ultrason_lookDroite();
 
 #endif

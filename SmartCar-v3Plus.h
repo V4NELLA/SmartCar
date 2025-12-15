@@ -44,7 +44,7 @@ static Servo servomoteur; // objet pour contrôler le servomoteur où est fixé 
 
 // configuration additionnelle :
 // angles min et max réels applicables ; la valeur 0° force le servomoteur
-#define ANGLE_DROITE 10
+#define ANGLE_DROITE 50
 #define ANGLE_CENTRE 90
 #define ANGLE_GAUCHE 170
 

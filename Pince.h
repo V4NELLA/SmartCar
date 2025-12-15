@@ -29,6 +29,7 @@ public:
   
   // Réglage de la vitesse (délai entre pas en ms)
   void set_vitesse(int ms);
+  void test_pince();
   
   // Utilitaire
   int get_position_actuelle();

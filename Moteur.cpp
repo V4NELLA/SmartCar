@@ -1,7 +1,7 @@
 #include "Moteur.h"
 
 // Ajout : trim pour corriger décalage latéral
-static int motor_trim = -40; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
+static int motor_trim = 30; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
 
 
 void moteur_init() {
@@ -15,8 +15,11 @@ void moteur_init() {
 
 
 void avancer(int p) {
+	// tourne légèrement vers la droite en réduisant la roue droite
+    int left = constrain(p + motor_trim, 0, 255);
+    //int right = constrain(p - motor_trim, 0, 255);
 	Serial.println("Avancer");
-	analogWrite(ENA, p);
+	analogWrite(ENA, left);
 	analogWrite(ENB, p);
 	digitalWrite(IN1,HIGH);
 	digitalWrite(IN2,LOW);
@@ -27,8 +30,11 @@ void avancer(int p) {
 // Faire reculer le robot.
 // pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void reculer(int p){
+	// tourne légèrement vers la droite en réduisant la roue droite
+    int left = constrain(p + motor_trim, 0, 255);
+    //int right = constrain(p - motor_trim, 0, 255);
 	Serial.println("Reculer");
-	analogWrite(ENA, p);
+	analogWrite(ENA, left);
 	analogWrite(ENB, p);
 	digitalWrite(IN1,LOW);
 	digitalWrite(IN2,HIGH);

@@ -73,3 +73,14 @@ void Pince::set_vitesse(int ms) {
   if (ms < 0) ms = 0;
   delai_pas = ms;
 }
+
+void Pince::test_pince(){
+  servo_pince.write(angle_ferme); 
+  delay(2000);
+  Serial.print("Angle fermé : ");
+  Serial.println(servo_pince.read());
+  servo_pince.write(angle_ouvert);
+  delay(2000);
+  Serial.print("Angle ouvert : ");
+  Serial.println(servo_pince.read());
+}

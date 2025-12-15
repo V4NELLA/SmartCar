@@ -4,17 +4,22 @@
 
 #define DISTANCE_RALENTI 60
 #define DISTANCE_OBSTACLE 25   // cm
-#define VITESSE_AVANCE 180
-#define VITESSE_RALENTI 120
+#define VITESSE_AVANCE 200
+#define VITESSE_RALENTI 180
 #define VITESSE_VIRAGE 120
-#define TEMPS_ROTATION 500
+#define TEMPS_ROTATION 350
 #define CHECK_INTERVAL 30
 
 // périodicités (ms)
-#define SCAN_INTERVAL 400      // intervalle pour scan ultrasons
+#define SCAN_INTERVAL 20      // intervalle pour scan ultrasons
 #define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
 
-Pince pince(13, 100, 150);  // Pin 13, 170° ouvert, 10° fermé
+// pour prise d'objet
+#define OBJECT_DETECT_DISTANCE 35  // distance pour déclencher séquence de prise (cm)
+#define GRAB_DISTANCE 20            // distance cible pour fermer la pince (cm)
+#define APPROACH_TIMEOUT 1000      // timeout sécurité pour approche (ms)
+
+Pince pince(13, 0, 180);  // Pin 13, 170° ouvert, 10° fermé
 
 // --- Motion scheduler (non-bloquant) ---
 enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
@@ -32,12 +37,15 @@ static unsigned long lastLineCheckMs = 0;
 static unsigned long last_lost_ts = 0;
 static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
 
-// non-bloquing avoidance sequence state-machine
-static bool avoidActive = false;
-static bool avoidStart = false;
-static int avoidStep = 0;
-static unsigned long avoidStepEnd = 0;
-static long lastDistG=300, lastDistC=300, lastDistD=300;
+static long lastDistD=300, lastDistC = 300;
+
+// nouvelle state-machine de prise d'objet
+static bool pickActive = false;
+static bool centre = false;
+static bool deja_recup = false;
+static int pickStep = 0;
+static unsigned long pickStepEnd = 0;
+static unsigned long pickApproachStart = 0;
 
 // start a motion for durationMs (non-blocking)
 static void startMotion(MotionType t, int speed, unsigned long durationMs) {
@@ -87,16 +95,12 @@ static void updateMotion() {
   }
 }
 
-static void periodicScan(long &distG, long &distC, long &distD) {
+static void periodicScan(long &distD, bool centre) {
   // appel non-bloquant : Ultrason effectue une mesure en tâche de fond par update
-  // il faut appeler ultrason_update() fréquemment depuis loop
-  ultrason_update();
+  ultrason_update(centre);
   // retourner les dernières valeurs connues
-  distG = ultrason_getGauche();
-  distC = ultrason_getCentre();
   distD = ultrason_getDroite();
-  // print debug ponctuel (optionnel)
-  Serial.print("Scan G:"); Serial.print(distG); Serial.print(" C:"); Serial.print(distC); Serial.print(" D:"); Serial.println(distD);
+  Serial.print(" D:"); Serial.println(distD);
 }
 
 
@@ -110,7 +114,7 @@ static void periodicLineCheck() {
 
   // priorité : si détecte ligne -> corrections rapides et courtes
   if (droite_est_noir()) {
-    // petite impulsion vers la droite
+    // impulsion vers la droite
     Serial.println("Droite est noir");
     startMotion(MOT_TURN_RIGHT, 200, 100);
     return;
@@ -126,7 +130,7 @@ static void periodicLineCheck() {
   }
 
   // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
+  if (!motion.active && !pickActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
 }
 
 
@@ -152,102 +156,90 @@ static void periodicLineCheck() {
 */
 
 
-static void startAvoidSequence() {
-  avoidActive = true;
-  avoidStart = true;
-  avoidStep = 0;
+// --- nouvelle séquence non-bloquante de prise d'objet ---
+static void startPickSequence() {
+  if (pickActive) return;
+  pickActive = true;
+  centre = true;
+  pickStep = 0;
+  pickStepEnd = millis();
   stopMotionNow();
-  avoidStepEnd = millis(); // commence immédiatement
-  Serial.println("Start avoid sequence");
+  Serial.println("Start pick sequence");
 }
 
-static void processAvoidSequence() {
-  if (!avoidActive) return;
+static void processPickSequence() {
+  if (!pickActive) return;
   unsigned long now = millis();
-  switch (avoidStep) {
+  switch (pickStep) {
     case 0:
-      // step0 : recul court
-      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 600);
-      avoidStepEnd = now + 600;
-      avoidStep++;
+      // ouvrir la pince (bloquant mais court)
+      pince.ouvrir(8); // vitesse (ms par pas) raisonnable
+      pickStep++;
+      pickStepEnd = now + 200;
       break;
     case 1:
-      // attente recul complet
-      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
+      if (now >= pickStepEnd && !motion.active) { pickStep++; }
       break;
     case 2:
-      // tourner à droite court
-      startMotion(MOT_TURN_RIGHT, 200, TEMPS_ROTATION);
-      avoidStepEnd = now + TEMPS_ROTATION;
-      avoidStep++;
+      // tourner sur la droite en direction de l'objet à récupérer
+      startMotion(MOT_TURN_RIGHT, VITESSE_AVANCE, TEMPS_ROTATION);
+      pickStepEnd = now + TEMPS_ROTATION;
+      pickStep++;
       break;
     case 3:
-      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
+      if (now >= pickStepEnd && !motion.active) { pickStep++; }
       break;
     case 4:
-      // avancer par pas et tester gauche libre
-      avoidStart = false;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1100);
-      avoidStepEnd = now + 1100;
-      avoidStep++;
+      // approche lente vers l'objet
+      pickApproachStart = now;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
+      pickStep++;
       break;
     case 5:
-      if (now >= avoidStepEnd && !motion.active) {
-        
-        // faire un scan (lever de servo et mesure)
-        lastDistG = ultrason_getGauche();
-        //lastDistC = ultrason_getCentre();;
-        //lastDistD = ultrason_getDroite();
-        Serial.print("Avoid scan G:"); Serial.print(lastDistG);
-        Serial.print(" C:"); Serial.print(lastDistC);
-        Serial.print(" D:"); Serial.println(lastDistD);
-
-        //if (lastDistG > DISTANCE_OBSTACLE) {
-          // gauche dégagée -> tourner gauche pour revenir vers la ligne/obstacle
-          startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION);
-          avoidStepEnd = now + TEMPS_ROTATION;
-          avoidStep++;
-        //} else {
-          // sinon, avancer encore
-          //avoidStep = 4; // boucle étape 4
-        //}
-          
+      // si trop proche ou timeout, arrêter et fermer pince
+      if (lastDistC <= GRAB_DISTANCE || (!motion.active) || (now - pickApproachStart > APPROACH_TIMEOUT)) {
+        stopMotionNow();
+        delay(50);
+        pince.fermer(8); // fermer (bloquant court)
+        pickStep++;
+        pickStepEnd = now + 300;
       }
       break;
     case 6:
-      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
-      break;
-    case 7:
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 450);
-      avoidStepEnd = now + 450;
-      avoidStep++;
-      break;
-    case 8:
-      if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
-      break;
-    case 9:
-      if (now >= avoidStepEnd && !motion.active) {
-        avoidStart = false;
-        avoidActive = false;
-        // avancer un petit pas après rotation gauche
-        startMotion(MOT_FORWARD, VITESSE_RALENTI, 400);
-        avoidStepEnd = now + 400;
-        avoidStep = 9;
+      // reculer un peu après saisie
+      if (now >= pickStepEnd) {
+        startMotion(MOT_BACKWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
+        pickStep++;
+        pickStepEnd = now + APPROACH_TIMEOUT;
       }
       break;
-    case 10:
-      if (now >= avoidStepEnd && !motion.active) {
-        // fin de la séquence
-        avoidActive = false;
-        avoidStep = 0;
-        Serial.println("Avoid sequence finished");
+    case 7:
+      if (now >= pickStepEnd && !motion.active) { pickStep++; }
+      break;
+    case 8:
+      // tourner sur la droite pour retrouver la ligne
+      startMotion(MOT_TURN_LEFT, VITESSE_AVANCE, TEMPS_ROTATION);
+      pickStepEnd = now + TEMPS_ROTATION;
+      pickStep++;
+      break;
+    case 9:
+      if (now >= pickStepEnd && !motion.active) {
+        // fin
+        pickActive = false;
+        pickStep = 0;
+        // remettre ultrasonic à droite après prise
+        ultrason_lookDroite();
+        centre = false;
+        deja_recup = true;
+        Serial.println("Pick sequence finished");
       }
       break;
     default:
-      avoidActive = false;
+      pickActive = false;
       break;
   }
 }
+
 
 void navigation_init() {
   moteur_init();
@@ -265,38 +257,34 @@ void navigation_loop() {
   updateMotion();
 
   // checks
-  if(!avoidStart) {
+  if(!pickActive) {
     periodicLineCheck();
   }
 
   // periodic scan (sets lastDist*)
-  periodicScan(lastDistG, lastDistC, lastDistD);
-  lastDistD = 300;
+  periodicScan(lastDistD, centre);
 
-  // obstacle detection based on latest scan results
-  long minDist = min(lastDistC, min(lastDistG, lastDistD));
-  Serial.print("Distance min : ");
-  Serial.println(minDist);
-  if (minDist < DISTANCE_OBSTACLE && !avoidActive) {
-    // start avoidance without blocking
-    stopMotionNow();
-    startAvoidSequence();
+  // object detection: centre plus proche que côtés => lancer séquence de prise
+  if (!pickActive && !deja_recup) {
+    if (lastDistD < OBJECT_DETECT_DISTANCE) {
+      Serial.print("Objet detecte C=");
+      Serial.println(lastDistD);
+      startPickSequence();
+    }
   }
 
-  // progress avoidance state-machine (non-blocking)
-  processAvoidSequence();
+  // progress pick state-machine (non-blocking)
+  processPickSequence();
 
   delay(1);
 }
 
-void testPince() {
-  //delay(2000);
-  
-  pince.fermer(25);         // utilise 25 ms/pas
-  delay(2000);
-  pince.lirePosition();
-  pince.ouvrir(25);      // ouvre lentement (25 ms/pas) pour éviter d'endommager
-  delay(2000);
-  pince.lirePosition();
-  
+void testPince(bool faireBouger) {
+  if(faireBouger) {
+    pince.test_pince();
+  }
+  else {
+    pince.lirePosition();
+    delay(2000);
+  }
 }
