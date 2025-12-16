@@ -7,7 +7,7 @@
 #define VITESSE_AVANCE 180
 #define VITESSE_RALENTI 120
 #define VITESSE_VIRAGE 120
-#define TEMPS_ROTATION 500
+#define TEMPS_ROTATION 400
 #define CHECK_INTERVAL 30
 
 // périodicités (ms)
@@ -167,8 +167,8 @@ static void processAvoidSequence() {
   switch (avoidStep) {
     case 0:
       // step0 : recul court
-      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 600);
-      avoidStepEnd = now + 600;
+      startMotion(MOT_BACKWARD, VITESSE_AVANCE, 500);
+      avoidStepEnd = now + 500;
       avoidStep++;
       break;
     case 1:
@@ -187,8 +187,8 @@ static void processAvoidSequence() {
     case 4:
       // avancer par pas et tester gauche libre
       avoidStart = false;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1100);
-      avoidStepEnd = now + 1100;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1000);
+      avoidStepEnd = now + 1000;
       avoidStep++;
       break;
     case 5:
@@ -204,8 +204,8 @@ static void processAvoidSequence() {
 
         //if (lastDistG > DISTANCE_OBSTACLE) {
           // gauche dégagée -> tourner gauche pour revenir vers la ligne/obstacle
-          startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION);
-          avoidStepEnd = now + TEMPS_ROTATION;
+          startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION+50);
+          avoidStepEnd = now + TEMPS_ROTATION+50;
           avoidStep++;
         //} else {
           // sinon, avancer encore
