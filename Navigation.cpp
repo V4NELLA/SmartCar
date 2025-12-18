@@ -2,26 +2,22 @@
 #include "LineSensor.h"
 #include "Pince.h"
 
-#define DISTANCE_RALENTI 60
-#define DISTANCE_OBSTACLE 25   // cm
+// Paramètres mouvements du robot
 #define VITESSE_AVANCE 200
-#define VITESSE_RALENTI 180
-#define VITESSE_VIRAGE 120
 #define TEMPS_ROTATION 350
-#define CHECK_INTERVAL 30
 
 // périodicités (ms)
 #define SCAN_INTERVAL 20      // intervalle pour scan ultrasons
-#define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
+#define LINE_CHECK_INTERVAL 30 // intervalle contrôle ligne
 
 // pour prise d'objet
 #define OBJECT_DETECT_DISTANCE 35  // distance pour déclencher séquence de prise (cm)
-#define GRAB_DISTANCE 20            // distance cible pour fermer la pince (cm)
-#define APPROACH_TIMEOUT 1000      // timeout sécurité pour approche (ms)
+#define DISTANCE_SAISIE 20            // distance cible pour fermer la pince (cm)
+#define APPROCHE_TIMEOUT 1000      // timeout sécurité pour approche (ms)
 
-Pince pince(13, 0, 180);  // Pin 13, 170° ouvert, 10° fermé
+Pince pince(13, 0, 180);  // Pin 13, 0° ouvert, 180° fermé
 
-// --- Motion scheduler (non-bloquant) ---
+// --- Gestion des mouvements  (non-bloquant) ---
 enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
 struct Motion {
   MotionType type = MOT_NONE;
@@ -33,21 +29,16 @@ struct Motion {
 static unsigned long lastScanMs = 0;
 static unsigned long lastLineCheckMs = 0;
 
-// comportement : suivre la ligne située à gauche du robot
-static unsigned long last_lost_ts = 0;
-static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
-
 static long lastDistD=300, lastDistC = 300;
 
-// nouvelle state-machine de prise d'objet
-static bool pickActive = false;
-static bool centre = false;
-static bool deja_recup = false;
-static int pickStep = 0;
-static unsigned long pickStepEnd = 0;
-static unsigned long pickApproachStart = 0;
+static bool pickActive = false;   // Booléen d'état pour mener la saisie de l'objet
+static bool centre = false;       // Booléen permettant de gérer la direction de scan du capteur ultrason
+static bool deja_recup = false;   // Vrai si objet délà saisi
+static int pickStep = 0;          // Variable indiquant les différentes étapes de saisie dans le switch de saisie
+static unsigned long pickStepEnd = 0;   // Variable stockant le temps millis de fin d'étape (saisie)
+static unsigned long pickApproachStart = 0;   // Variable stockant le temps millis de débit d'approche pour saisie objet
 
-// start a motion for durationMs (non-blocking)
+// Fonction pour débuter un mouvement pendant une période définie (non-bloquant)
 static void startMotion(MotionType t, int speed, unsigned long durationMs) {
   motion.type = t;
   motion.speed = speed;
@@ -59,7 +50,7 @@ static void startMotion(MotionType t, int speed, unsigned long durationMs) {
       avancer(speed);
       break;
     case MOT_BACKWARD:
-      reculer(speed); // sets direction pins
+      reculer(speed);
       break;
     case MOT_TURN_LEFT:
       tourner_gauche(speed);
@@ -80,14 +71,14 @@ static void startMotion(MotionType t, int speed, unsigned long durationMs) {
   }
 }
 
-// stop current motion now
+// Arrêt du mouvement courant
 static void stopMotionNow() {
   stop();
   motion.active = false;
   motion.type = MOT_NONE;
 }
 
-// must be called frequently to stop motion at endTime
+// Vérifie à intervalle régulier l'état de mouvement
 static void updateMotion() {
   if (!motion.active) return;
   if (millis() >= motion.endTime) {
@@ -104,7 +95,7 @@ static void periodicScan(long &distD, bool centre) {
 }
 
 
-// periodic line check -> corrective small motions (non-blocking)
+// Fonction de correction du mouvement en fonction du check de ligne (non-bloquante)
 static void periodicLineCheck() {
 
   Serial.println("Scan ligne");
@@ -125,16 +116,18 @@ static void periodicLineCheck() {
     return;
   }
   if (gauche_est_noir()) {
+    // tourner vers la gauche
     startMotion(MOT_TURN_LEFT, 160, 80);
     return;
   }
 
-  // aucune ligne : avancer lentement pour rechercher
+  // aucune ligne : avancer vers la gauche tout en avançant pour retrouver la ligne
   if (!motion.active && !pickActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
 }
 
 
 /*
+// Fonction de suivi de ligne avec un seul capteur
 static void periodicLineCheck() {
 
   Serial.println("Scan ligne");
@@ -172,7 +165,7 @@ static void processPickSequence() {
   unsigned long now = millis();
   switch (pickStep) {
     case 0:
-      // ouvrir la pince (bloquant mais court)
+      // ouvrir la pince
       pince.ouvrir(8); // vitesse (ms par pas) raisonnable
       pickStep++;
       pickStepEnd = now + 200;
@@ -190,34 +183,34 @@ static void processPickSequence() {
       if (now >= pickStepEnd && !motion.active) { pickStep++; }
       break;
     case 4:
-      // approche lente vers l'objet
+      // approche vers l'objet
       pickApproachStart = now;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, APPROCHE_TIMEOUT);
       pickStep++;
       break;
     case 5:
       // si trop proche ou timeout, arrêter et fermer pince
-      if (lastDistC <= GRAB_DISTANCE || (!motion.active) || (now - pickApproachStart > APPROACH_TIMEOUT)) {
+      if (lastDistC <= DISTANCE_SAISIE || (!motion.active) || (now - pickApproachStart > APPROCHE_TIMEOUT)) {
         stopMotionNow();
         delay(50);
-        pince.fermer(8); // fermer (bloquant court)
+        pince.fermer(8); // fermer
         pickStep++;
         pickStepEnd = now + 300;
       }
       break;
     case 6:
-      // reculer un peu après saisie
+      // reculer après saisie
       if (now >= pickStepEnd) {
-        startMotion(MOT_BACKWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
+        startMotion(MOT_BACKWARD, VITESSE_AVANCE, APPROCHE_TIMEOUT);
         pickStep++;
-        pickStepEnd = now + APPROACH_TIMEOUT;
+        pickStepEnd = now + APPROCHE_TIMEOUT;
       }
       break;
     case 7:
       if (now >= pickStepEnd && !motion.active) { pickStep++; }
       break;
     case 8:
-      // tourner sur la droite pour retrouver la ligne
+      // tourner sur la gauche pour retrouver la ligne
       startMotion(MOT_TURN_LEFT, VITESSE_AVANCE, TEMPS_ROTATION);
       pickStepEnd = now + TEMPS_ROTATION;
       pickStep++;
@@ -228,7 +221,7 @@ static void processPickSequence() {
         pickActive = false;
         pickStep = 0;
         // remettre ultrasonic à droite après prise
-        ultrason_lookDroite();
+        ultrason_Droite();
         centre = false;
         deja_recup = true;
         Serial.println("Pick sequence finished");
@@ -253,38 +246,28 @@ void navigation_init() {
 
 
 void navigation_loop() {
-  // update scheduled motion
+  // actualiser la fonction de déplacement
   updateMotion();
 
-  // checks
+  // Appel de la fonction de détection de ligne si pas en phase de saisie
   if(!pickActive) {
     periodicLineCheck();
   }
 
-  // periodic scan (sets lastDist*)
+  // appel fonction scan ultrason
   periodicScan(lastDistD, centre);
 
   // object detection: centre plus proche que côtés => lancer séquence de prise
   if (!pickActive && !deja_recup) {
     if (lastDistD < OBJECT_DETECT_DISTANCE) {
-      Serial.print("Objet detecte C=");
-      Serial.println(lastDistD);
+      // Serial.print("Objet detecte C=");
+      // Serial.println(lastDistD);
       startPickSequence();
     }
   }
 
-  // progress pick state-machine (non-blocking)
+  // appel de la fonctio à état de l'étape de saisie (non-bloquante)
   processPickSequence();
 
   delay(1);
-}
-
-void testPince(bool faireBouger) {
-  if(faireBouger) {
-    pince.test_pince();
-  }
-  else {
-    pince.lirePosition();
-    delay(2000);
-  }
 }

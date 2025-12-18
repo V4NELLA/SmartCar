@@ -10,6 +10,6 @@ long ultrason_getGauche();       // dernière valeur lue (cm)
 long ultrason_getCentre();
 long ultrason_getDroite();
 void ultrason_requestFullScan(); // force un scan complet immédiat (optionnel)
-void ultrason_lookDroite();
+void ultrason_Droite();
 
 #endif

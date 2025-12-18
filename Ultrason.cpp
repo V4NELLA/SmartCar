@@ -1,12 +1,11 @@
 #include "Ultrason.h"
 
-//static Servo servomoteur;
 static long lastD = 300;
 
 static unsigned long us_deadline = 0;
 
-static const unsigned long SERVO_SETTLE_MS = 220; // laisser stabiliser servo
-static const unsigned long INTER_SCAN_MS = 20;    // délai entre mesures si besoin
+static const unsigned long SERVO_SETTLE_MS = 220; // delay pour stabiliser position servo
+static const unsigned long INTER_SCAN_MS = 20;    // délai entre mesures en millisecondes
 
 
 void ultrason_init() {
@@ -18,7 +17,7 @@ void ultrason_init() {
     us_deadline = millis();
 }
 
-// helper blocking pulse read (kept short timeout)
+// Fonction de scan retournant la distance en centimètres
 static long mesureDist() {
     digitalWrite(TRIG, LOW);
     delayMicroseconds(2);
@@ -31,28 +30,29 @@ static long mesureDist() {
     return dist;
 }
 
-// state-machine: call frequently from loop (non-blocking except for short pulseIn)
+// Fonction non bloquante gérant les déplacements et l'appel de la fonction scan de l'ultrason
 void ultrason_update(bool centre) {
     unsigned long now = millis();
     if (centre) {
-        // start moving to next angle
+        // Lorsque la robot est en approche de l'objet à saisir, le capteur ultrason doit regarder devant (condition "centre")
         servomoteur.write(ANGLE_CENTRE);
         us_deadline = now + SERVO_SETTLE_MS;
     }
     if (now >= us_deadline) {
-      // measure (pulseIn blocks up to ~20ms)
+      // Prise de la mesure
       lastD = mesureDist();
 
-      // small inter-scan gap
+      // Attente du délai minimum avant prochain scan
       us_deadline = now + INTER_SCAN_MS;
     }
 }
 
-void ultrason_lookDroite() {
+void ultrason_Droite() {
     // remet le servomoteur en position droite et laisse le temps de stabiliser
     servomoteur.write(ANGLE_DROITE);
     us_deadline = millis() + SERVO_SETTLE_MS;
 }
 
+// Fonction pour retourner la distance scannée
 long ultrason_getDroite()  { return lastD; }
 

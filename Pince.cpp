@@ -27,7 +27,7 @@ void Pince::fermer(int vitesse) {
   aller_position(angle_ferme, vitesse);
 }
 
-// Arrête le servomoteur (neutre, généralement 90°)
+// Arrête le servomoteur (neutre)
 void Pince::arreter() {
   servo_pince.write(90);  // Position neutre
   angle_actuel = 90;
@@ -63,24 +63,8 @@ int Pince::get_position_actuelle() {
   return angle_actuel;
 }
 
-void Pince::lirePosition() {
-    Serial.print("Position pince : ");
-    Serial.println(servo_pince.read());
-}
-
 // Réglage de la vitesse par défaut (délai entre pas en ms)
 void Pince::set_vitesse(int ms) {
   if (ms < 0) ms = 0;
   delai_pas = ms;
-}
-
-void Pince::test_pince(){
-  servo_pince.write(angle_ferme); 
-  delay(2000);
-  Serial.print("Angle fermé : ");
-  Serial.println(servo_pince.read());
-  servo_pince.write(angle_ouvert);
-  delay(2000);
-  Serial.print("Angle ouvert : ");
-  Serial.println(servo_pince.read());
 }

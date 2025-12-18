@@ -25,11 +25,9 @@ public:
   void fermer(int vitesse = -1);
   void arreter();
   void aller_position(int angle, int vitesse = -1);
-  void lirePosition();
   
   // Réglage de la vitesse (délai entre pas en ms)
   void set_vitesse(int ms);
-  void test_pince();
   
   // Utilitaire
   int get_position_actuelle();

@@ -1,6 +1,6 @@
 #include "Moteur.h"
 
-// Ajout : trim pour corriger décalage latéral
+// Ajout : trim pour corriger décalage latéral entre la motricité gauche/droite du robot
 static int motor_trim = 30; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
 
 
@@ -15,7 +15,6 @@ void moteur_init() {
 
 
 void avancer(int p) {
-	// tourne légèrement vers la droite en réduisant la roue droite
     int left = constrain(p + motor_trim, 0, 255);
     //int right = constrain(p - motor_trim, 0, 255);
 	Serial.println("Avancer");
@@ -28,9 +27,7 @@ void avancer(int p) {
 }
 
 // Faire reculer le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void reculer(int p){
-	// tourne légèrement vers la droite en réduisant la roue droite
     int left = constrain(p + motor_trim, 0, 255);
     //int right = constrain(p - motor_trim, 0, 255);
 	Serial.println("Reculer");
@@ -43,7 +40,6 @@ void reculer(int p){
 }
 
 // Faire trouner à gauche le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_gauche(int p){
 	Serial.println("Tourner à gauche");
 	analogWrite(ENA, p);
@@ -56,7 +52,6 @@ void tourner_gauche(int p){
 
 
 // Faire trouner à droite le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_droite(int p){
 	analogWrite(ENA, p);
   	analogWrite(ENB, p);
@@ -67,17 +62,14 @@ void tourner_droite(int p){
 	digitalWrite(IN4,LOW); 
 }
 
-
+// Faire trouner à droite le robot tout en avançant
 void avancer_droite(int p) {
-    // tourne légèrement vers la droite en réduisant la roue droite
     int left = constrain(p + motor_trim, 0, 255);
     int right = constrain(p - motor_trim, 0, 255);
     right = (right * 50) / 100; // réduire roue intérieure (droite)
 
     analogWrite(ENA, left);   // PWM gauche
     analogWrite(ENB, right);  // PWM droite
-
-    // direction avant (mêmes pin que dans avancer())
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
@@ -86,16 +78,14 @@ void avancer_droite(int p) {
     Serial.println("Avancer droite");
 }
 
+// Faire trouner à gauche le robot tout en avançant
 void avancer_gauche(int p) {
-    // tourne légèrement vers la gauche en réduisant la roue gauche
     int left = constrain(p + motor_trim, 0, 255);
     int right = constrain(p - motor_trim, 0, 255);
     left = (left * 32) / 100; // réduire roue intérieure (gauche)
 
     analogWrite(ENA, left);   // PWM gauche
     analogWrite(ENB, right);  // PWM droite
-
-    // direction avant
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
@@ -106,7 +96,7 @@ void avancer_gauche(int p) {
 
 
 // Arrêt du robot
-void stop() { // tout à LOW ou tout à 
+void stop() {
 	digitalWrite(IN1, LOW);      
 	digitalWrite(IN2, LOW);
 	digitalWrite(IN3, LOW);      
