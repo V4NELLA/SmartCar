@@ -22,7 +22,7 @@
 Pince pince(13, 0, 180);  // Pin 13, 170° ouvert, 10° fermé
 
 // --- Motion scheduler (non-bloquant) ---
-enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
+enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_BACK_LEFT, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
 struct Motion {
   MotionType type = MOT_NONE;
   int speed = 0;
@@ -40,9 +40,9 @@ static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
 static long lastDistD=300, lastDistC = 300;
 
 // nouvelle state-machine de prise d'objet
-static bool pickActive = false;
+static bool pickActive = true;
 static bool centre = false;
-static bool deja_recup = false;
+static bool lestart = true;
 static int pickStep = 0;
 static unsigned long pickStepEnd = 0;
 static unsigned long pickApproachStart = 0;
@@ -60,6 +60,9 @@ static void startMotion(MotionType t, int speed, unsigned long durationMs) {
       break;
     case MOT_BACKWARD:
       reculer(speed); // sets direction pins
+      break;
+    case MOT_BACK_LEFT:
+      reculer_gauche(speed);
       break;
     case MOT_TURN_LEFT:
       tourner_gauche(speed);
@@ -112,48 +115,25 @@ static void periodicLineCheck() {
   if (now - lastLineCheckMs < LINE_CHECK_INTERVAL) return;
   lastLineCheckMs = now;
 
-  // priorité : si détecte ligne -> corrections rapides et courtes
-  if (droite_est_noir()) {
-    // impulsion vers la droite
-    Serial.println("Droite est noir");
-    startMotion(MOT_TURN_RIGHT, 200, 100);
-    return;
-  }
-  if (milieu_est_noir()) {
-    // avancer si pas déjà en avant
-    if (!motion.active || motion.type != MOT_FORWARD) startMotion(MOT_FORWARD, VITESSE_AVANCE, 200);
-    return;
-  }
   if (gauche_est_noir()) {
-    startMotion(MOT_TURN_LEFT, 160, 80);
+    if(pickActive){
+      if(lestart) {
+        pickActive = false;
+      }
+      else {
+        lestart = true;
+      }
+    }
+    else {
+      pickActive = true;
+    }
     return;
   }
 
-  // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active && !pickActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
+  // aucune ligne : avancer pour récupérer
+  if (pickActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
+  if (!pickActive) startMotion(MOT_BACK_LEFT, VITESSE_AVANCE, 200);
 }
-
-
-/*
-static void periodicLineCheck() {
-
-  Serial.println("Scan ligne");
-  unsigned long now = millis();
-  if (now - lastLineCheckMs < LINE_CHECK_INTERVAL) return;
-  lastLineCheckMs = now;
-
-  // priorité : si détecte ligne -> corrections rapides et courtes
-  if (gauche_est_noir()) {
-    // petite impulsion vers la droite
-    Serial.println("Droite est noir");
-    startMotion(MOT_TURN_RIGHT, 160, 60);
-    return;
-  }
-
-  // aucune ligne : avancer lentement pour rechercher
-  if (!motion.active && !avoidActive) startMotion(MOT_LEFT, VITESSE_AVANCE, 200);
-}
-*/
 
 
 // --- nouvelle séquence non-bloquante de prise d'objet ---
@@ -170,74 +150,11 @@ static void startPickSequence() {
 static void processPickSequence() {
   if (!pickActive) return;
   unsigned long now = millis();
-  switch (pickStep) {
-    case 0:
-      // ouvrir la pince (bloquant mais court)
-      pince.ouvrir(8); // vitesse (ms par pas) raisonnable
-      pickStep++;
-      pickStepEnd = now + 200;
-      break;
-    case 1:
-      if (now >= pickStepEnd && !motion.active) { pickStep++; }
-      break;
-    case 2:
-      // tourner sur la droite en direction de l'objet à récupérer
-      startMotion(MOT_TURN_RIGHT, VITESSE_AVANCE, TEMPS_ROTATION);
-      pickStepEnd = now + TEMPS_ROTATION;
-      pickStep++;
-      break;
-    case 3:
-      if (now >= pickStepEnd && !motion.active) { pickStep++; }
-      break;
-    case 4:
-      // approche lente vers l'objet
-      pickApproachStart = now;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
-      pickStep++;
-      break;
-    case 5:
-      // si trop proche ou timeout, arrêter et fermer pince
-      if (lastDistC <= GRAB_DISTANCE || (!motion.active) || (now - pickApproachStart > APPROACH_TIMEOUT)) {
-        stopMotionNow();
-        delay(50);
-        pince.fermer(8); // fermer (bloquant court)
-        pickStep++;
-        pickStepEnd = now + 300;
-      }
-      break;
-    case 6:
-      // reculer un peu après saisie
-      if (now >= pickStepEnd) {
-        startMotion(MOT_BACKWARD, VITESSE_AVANCE, APPROACH_TIMEOUT);
-        pickStep++;
-        pickStepEnd = now + APPROACH_TIMEOUT;
-      }
-      break;
-    case 7:
-      if (now >= pickStepEnd && !motion.active) { pickStep++; }
-      break;
-    case 8:
-      // tourner sur la droite pour retrouver la ligne
-      startMotion(MOT_TURN_LEFT, VITESSE_AVANCE, TEMPS_ROTATION);
-      pickStepEnd = now + TEMPS_ROTATION;
-      pickStep++;
-      break;
-    case 9:
-      if (now >= pickStepEnd && !motion.active) {
-        // fin
-        pickActive = false;
-        pickStep = 0;
-        // remettre ultrasonic à droite après prise
-        ultrason_lookDroite();
-        centre = false;
-        deja_recup = true;
-        Serial.println("Pick sequence finished");
-      }
-      break;
-    default:
-      pickActive = false;
-      break;
-  }
+    // tourner sur la droite en direction de l'objet à récupérer
+    startMotion(MOT_LEFT, VITESSE_AVANCE, TEMPS_ROTATION);
+    pickStepEnd = now + TEMPS_ROTATION;
+    pickStep++;
+    if (now >= pickStepEnd && !motion.active) { pickStep++; }
 }
 
 
@@ -257,34 +174,10 @@ void navigation_loop() {
   updateMotion();
 
   // checks
-  if(!pickActive) {
-    periodicLineCheck();
-  }
-
-  // periodic scan (sets lastDist*)
-  periodicScan(lastDistD, centre);
-
-  // object detection: centre plus proche que côtés => lancer séquence de prise
-  if (!pickActive && !deja_recup) {
-    if (lastDistD < OBJECT_DETECT_DISTANCE) {
-      Serial.print("Objet detecte C=");
-      Serial.println(lastDistD);
-      startPickSequence();
-    }
-  }
+  periodicLineCheck();
 
   // progress pick state-machine (non-blocking)
   processPickSequence();
 
   delay(1);
-}
-
-void testPince(bool faireBouger) {
-  if(faireBouger) {
-    pince.test_pince();
-  }
-  else {
-    pince.lirePosition();
-    delay(2000);
-  }
 }
