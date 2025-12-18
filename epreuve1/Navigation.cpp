@@ -187,7 +187,7 @@ static void processAvoidSequence() {
     case 4:
       // avancer par pas et tester gauche libre
       avoidStart = false;
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1000);
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 1100);
       avoidStepEnd = now + 1000;
       avoidStep++;
       break;
@@ -218,8 +218,8 @@ static void processAvoidSequence() {
       if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
       break;
     case 7:
-      startMotion(MOT_FORWARD, VITESSE_AVANCE, 450);
-      avoidStepEnd = now + 450;
+      startMotion(MOT_FORWARD, VITESSE_AVANCE, 200);
+      avoidStepEnd = now + 200;
       avoidStep++;
       break;
     case 8:
