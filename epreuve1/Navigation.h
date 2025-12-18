@@ -6,7 +6,5 @@
 
 void navigation_init();
 void navigation_loop();
-void periodicLineCheck();
-void testPince();
 
 #endif

@@ -9,6 +9,5 @@ void ultrason_update();          // doit être appelé fréquemment (loop)
 long ultrason_getGauche();       // dernière valeur lue (cm)
 long ultrason_getCentre();
 long ultrason_getDroite();
-void ultrason_requestFullScan(); // force un scan complet immédiat (optionnel)
 
 #endif

@@ -1,22 +1,17 @@
 #include "Navigation.h"
 #include "LineSensor.h"
-#include "Pince.h"
 
-#define DISTANCE_RALENTI 60
 #define DISTANCE_OBSTACLE 25   // cm
 #define VITESSE_AVANCE 180
 #define VITESSE_RALENTI 120
-#define VITESSE_VIRAGE 120
 #define TEMPS_ROTATION 400
-#define CHECK_INTERVAL 30
 
 // périodicités (ms)
 #define SCAN_INTERVAL 400      // intervalle pour scan ultrasons
 #define LINE_CHECK_INTERVAL 30 // fréquence contrôle ligne
 
-Pince pince(13, 100, 150);  // Pin 13, 170° ouvert, 10° fermé
 
-// --- Motion scheduler (non-bloquant) ---
+// --- Gestion des mouvements (non-bloquant) ---
 enum MotionType { MOT_NONE, MOT_FORWARD, MOT_BACKWARD, MOT_TURN_LEFT, MOT_TURN_RIGHT, MOT_LEFT, MOT_RIGHT };
 struct Motion {
   MotionType type = MOT_NONE;
@@ -25,21 +20,18 @@ struct Motion {
   bool active = false;
 } motion;
 
-static unsigned long lastScanMs = 0;
 static unsigned long lastLineCheckMs = 0;
 
-// comportement : suivre la ligne située à gauche du robot
-static unsigned long last_lost_ts = 0;
-static const unsigned long LOST_TIMEOUT = 200; // ms avant recherche active
-
-// non-bloquing avoidance sequence state-machine
-static bool avoidActive = false;
-static bool avoidStart = false;
-static int avoidStep = 0;
-static unsigned long avoidStepEnd = 0;
 static long lastDistG=300, lastDistC=300, lastDistD=300;
 
-// start a motion for durationMs (non-blocking)
+// non-bloquing avoidance sequence state-machine
+static bool avoidActive = false;      // Booléen d'état pour mener l'évitement d'obstacle
+static bool avoidStart = false;
+static int avoidStep = 0;             // Variable indiquant les différentes étapes d'évitement dans le switch
+static unsigned long avoidStepEnd = 0;      // Variable stockant le temps millis de fin d'étape (évitement)
+
+
+// Fonction pour débuter un mouvement pendant une période définie (non-bloquant)
 static void startMotion(MotionType t, int speed, unsigned long durationMs) {
   motion.type = t;
   motion.speed = speed;
@@ -51,7 +43,7 @@ static void startMotion(MotionType t, int speed, unsigned long durationMs) {
       avancer(speed);
       break;
     case MOT_BACKWARD:
-      reculer(speed); // sets direction pins
+      reculer(speed);
       break;
     case MOT_TURN_LEFT:
       tourner_gauche(speed);
@@ -72,14 +64,14 @@ static void startMotion(MotionType t, int speed, unsigned long durationMs) {
   }
 }
 
-// stop current motion now
+// Arrêt du mouvement courant
 static void stopMotionNow() {
   stop();
   motion.active = false;
   motion.type = MOT_NONE;
 }
 
-// must be called frequently to stop motion at endTime
+// Vérifie à intervalle régulier l'état de mouvement
 static void updateMotion() {
   if (!motion.active) return;
   if (millis() >= motion.endTime) {
@@ -89,7 +81,6 @@ static void updateMotion() {
 
 static void periodicScan(long &distG, long &distC, long &distD) {
   // appel non-bloquant : Ultrason effectue une mesure en tâche de fond par update
-  // il faut appeler ultrason_update() fréquemment depuis loop
   ultrason_update();
   // retourner les dernières valeurs connues
   distG = ultrason_getGauche();
@@ -100,7 +91,7 @@ static void periodicScan(long &distG, long &distC, long &distD) {
 }
 
 
-// periodic line check -> corrective small motions (non-blocking)
+/// Fonction de correction du mouvement en fonction du check de ligne (non-bloquant)
 static void periodicLineCheck() {
 
   Serial.println("Scan ligne");
@@ -131,6 +122,7 @@ static void periodicLineCheck() {
 
 
 /*
+// Fonction de suivi de ligne avec un seul capteur
 static void periodicLineCheck() {
 
   Serial.println("Scan ligne");
@@ -152,6 +144,7 @@ static void periodicLineCheck() {
 */
 
 
+// --- nouvelle séquence non-bloquante d'évitement d'obstacle ---
 static void startAvoidSequence() {
   avoidActive = true;
   avoidStart = true;
@@ -166,7 +159,7 @@ static void processAvoidSequence() {
   unsigned long now = millis();
   switch (avoidStep) {
     case 0:
-      // step0 : recul court
+      // step0 : recul
       startMotion(MOT_BACKWARD, VITESSE_AVANCE, 500);
       avoidStepEnd = now + 500;
       avoidStep++;
@@ -176,7 +169,7 @@ static void processAvoidSequence() {
       if (now >= avoidStepEnd && !motion.active) { avoidStep++; }
       break;
     case 2:
-      // tourner à droite court
+      // tourner à droite
       startMotion(MOT_TURN_RIGHT, 200, TEMPS_ROTATION);
       avoidStepEnd = now + TEMPS_ROTATION;
       avoidStep++;
@@ -193,25 +186,9 @@ static void processAvoidSequence() {
       break;
     case 5:
       if (now >= avoidStepEnd && !motion.active) {
-        
-        // faire un scan (lever de servo et mesure)
-        lastDistG = ultrason_getGauche();
-        //lastDistC = ultrason_getCentre();;
-        //lastDistD = ultrason_getDroite();
-        Serial.print("Avoid scan G:"); Serial.print(lastDistG);
-        Serial.print(" C:"); Serial.print(lastDistC);
-        Serial.print(" D:"); Serial.println(lastDistD);
-
-        //if (lastDistG > DISTANCE_OBSTACLE) {
-          // gauche dégagée -> tourner gauche pour revenir vers la ligne/obstacle
-          startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION+50);
-          avoidStepEnd = now + TEMPS_ROTATION+50;
-          avoidStep++;
-        //} else {
-          // sinon, avancer encore
-          //avoidStep = 4; // boucle étape 4
-        //}
-          
+        startMotion(MOT_TURN_LEFT, 200, TEMPS_ROTATION+50);
+        avoidStepEnd = now + TEMPS_ROTATION+50;
+        avoidStep++;
       }
       break;
     case 6:
@@ -253,50 +230,30 @@ void navigation_init() {
   moteur_init();
   ultrason_init();
   line_init();
-  pince.init();
-  lastScanMs = millis();
   lastLineCheckMs = millis();
   motion.active = false;
 }
 
 
 void navigation_loop() {
-  // update scheduled motion
+
   updateMotion();
 
-  // checks
   if(!avoidStart) {
     periodicLineCheck();
   }
 
-  // periodic scan (sets lastDist*)
   periodicScan(lastDistG, lastDistC, lastDistD);
   lastDistD = 300;
 
-  // obstacle detection based on latest scan results
   long minDist = min(lastDistC, min(lastDistG, lastDistD));
-  Serial.print("Distance min : ");
-  Serial.println(minDist);
+
   if (minDist < DISTANCE_OBSTACLE && !avoidActive) {
-    // start avoidance without blocking
     stopMotionNow();
     startAvoidSequence();
   }
 
-  // progress avoidance state-machine (non-blocking)
   processAvoidSequence();
 
   delay(1);
-}
-
-void testPince() {
-  //delay(2000);
-  
-  pince.fermer(25);         // utilise 25 ms/pas
-  delay(2000);
-  pince.lirePosition();
-  pince.ouvrir(25);      // ouvre lentement (25 ms/pas) pour éviter d'endommager
-  delay(2000);
-  pince.lirePosition();
-  
 }

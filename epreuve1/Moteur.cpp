@@ -1,6 +1,6 @@
 #include "Moteur.h"
 
-// Ajout : trim pour corriger décalage latéral
+// Ajout : trim pour corriger décalage latéral de motricité gauche/droite du robot
 static int motor_trim = -50; // positif => augmente puissance moteur "gauche" (ENA), négatif => augmente droite (ENB)
 
 
@@ -25,7 +25,6 @@ void avancer(int p) {
 }
 
 // Faire reculer le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void reculer(int p){
 	Serial.println("Reculer");
 	analogWrite(ENA, p);
@@ -37,7 +36,6 @@ void reculer(int p){
 }
 
 // Faire trouner à gauche le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_gauche(int p){
 	Serial.println("Tourner à gauche");
 	analogWrite(ENA, p);
@@ -50,7 +48,6 @@ void tourner_gauche(int p){
 
 
 // Faire trouner à droite le robot.
-// pré-requis : gérer la puissance via modifier_puissance(int puissance)
 void tourner_droite(int p){
 	analogWrite(ENA, p);
   	analogWrite(ENB, p);
@@ -70,8 +67,6 @@ void avancer_droite(int p) {
 
     analogWrite(ENA, left);   // PWM gauche
     analogWrite(ENB, right);  // PWM droite
-
-    // direction avant (mêmes pin que dans avancer())
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
@@ -88,8 +83,6 @@ void avancer_gauche(int p) {
 
     analogWrite(ENA, left);   // PWM gauche
     analogWrite(ENB, right);  // PWM droite
-
-    // direction avant
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
     digitalWrite(IN3, LOW);
